@@ -1,0 +1,12 @@
+image:
+  file: .gitpod.Dockerfile
+
+ports:
+  - port: 9080 # npmgraph web preview
+    visibility: public
+tasks:
+  - init: npm install
+    command: >
+      npm install -g static-server &&
+      static-server
+      # gp preview localhost:31337#/view/2d/%2540theia%252Ftask
