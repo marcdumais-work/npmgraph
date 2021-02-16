@@ -14,9 +14,6 @@ const EDGE_ATTRIBUTES = {
 };
 
 function getDependencyEntries(pkg, depIncludes, level = 0) {
-  console.log(`pkg: ${pkg}, depincludes: ${depIncludes}, Level: ${level}`);
-  // await new Promise(resolve => setTimeout(resolve, 10))
-
   pkg = pkg.package || pkg;
 
   const deps = [];
@@ -50,6 +47,7 @@ async function modulesForQuery(query, depIncludes) {
   const graph = new Map();
 
   function _walk(module, level = 0) {
+    console.log(`_walk(module=${module}, level=${level})`);  
     if (!module) return Promise.resolve(Error('Undefined module'));
 
     // Array?  Apply to each element
