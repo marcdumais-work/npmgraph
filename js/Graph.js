@@ -4,6 +4,7 @@ import { AppContext, store, activity } from './App.js';
 import { $, tagElement, report, fetchJSON } from './util.js';
 
 const FONT = 'Roboto Condensed, sans-serif';
+const MAX_LEVEL = 10;
 
 const EDGE_ATTRIBUTES = {
   dependencies: '[color=black]',
@@ -17,6 +18,12 @@ function getDependencyEntries(pkg, depIncludes, level = 0) {
   pkg = pkg.package || pkg;
 
   const deps = [];
+
+  // protection: limit depth
+  if (level > MAX_LEVEL) {
+    return deps;
+  }
+
 
   for (const type of depIncludes) {
     if (!pkg[type]) continue;
