@@ -2,8 +2,10 @@ ports:
   - port: 9080 # npmgraph web preview
     visibility: public
 tasks:
-  - init: npm install
+  - init: npm install && npm install -g static-server
     command: >
-      npm install -g static-server &&
       static-server
-      # gp preview localhost:31337#/view/2d/%2540theia%252Ftask
+
+  - init: npm install -g verdaccio
+    command: >
+      verdaccio
