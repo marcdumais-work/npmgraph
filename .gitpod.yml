@@ -1,13 +1,7 @@
 ports:
   - port: 9080 # npmgraph web preview
     visibility: public
-  - port: 4873 # verdaccio - local npm registry / cache
-    visibility: public
 tasks:
   - init: npm install && npm install -g static-server
     command: >
       static-server
-
-  - init: npm install -g verdaccio
-    command: >
-      verdaccio
