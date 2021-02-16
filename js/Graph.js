@@ -4,7 +4,7 @@ import { AppContext, store, activity } from './App.js';
 import { $, tagElement, report, fetchJSON } from './util.js';
 
 const FONT = 'Roboto Condensed, sans-serif';
-const MAX_LEVEL = 10;
+const MAX_LEVEL = 8;
 
 const EDGE_ATTRIBUTES = {
   dependencies: '[color=black]',
@@ -54,7 +54,7 @@ async function modulesForQuery(query, depIncludes) {
   const graph = new Map();
 
   function _walk(module, level = 0) {
-    console.log(`_walk(module=${module}, level=${level})`);  
+    console.log(`_walk(module=${module}, level=${level}, total-deps=${graph.size})`);  
     if (!module) return Promise.resolve(Error('Undefined module'));
 
     // Array?  Apply to each element
