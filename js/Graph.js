@@ -4,6 +4,7 @@ import { AppContext, store, activity } from './App.js';
 import { $, tagElement, report, fetchJSON } from './util.js';
 
 const FONT = 'Roboto Condensed, sans-serif';
+const MAX_LEVEL = 4;
 
 const EDGE_ATTRIBUTES = {
   dependencies: '[color=black]',
@@ -18,11 +19,17 @@ function getDependencyEntries(pkg, depIncludes, level = 0) {
 
   const deps = [];
 
+  // protection: limit depth
+  if (level >= MAX_LEVEL) {
+    return deps;
+  }
+
+
   for (const type of depIncludes) {
     if (!pkg[type]) continue;
 
     // Only do one level for non-"dependencies"
-    if (level > 0 && type != 'dependencies') continue;
+    // if (level > 0 && type != 'dependencies') continue;
 
     // Get entries, adding type to each entry
     const d = Object.entries(pkg[type]);
@@ -45,8 +52,10 @@ export function hslFor(perc) {
  */
 async function modulesForQuery(query, depIncludes) {
   const graph = new Map();
+  const packages = new Map();
+  let i = 0;
 
-  function _walk(module, level = 0) {
+  function _walk(module, level = 0) { 
     if (!module) return Promise.resolve(Error('Undefined module'));
 
     // Array?  Apply to each element
@@ -56,6 +65,11 @@ async function modulesForQuery(query, depIncludes) {
 
     // Skip modules we've already seen
     if (module && graph.has(module.key)) return Promise.resolve();
+    
+    if ( i % 500 == 0 ) { // every 100 new dependencies, log this:
+        console.log(`_walk(module=${module}, level=${level}, total-deps=${graph.size}, total packages: ${packages.size})`);  
+    }
+    i++;
 
     // Get dependency [name, version, dependency type] entries
     const depEntries = getDependencyEntries(module, depIncludes, level);
@@ -63,6 +77,14 @@ async function modulesForQuery(query, depIncludes) {
     // Create object that captures info about how this module fits in the dependency graph
     const info = { module, level };
     graph.set(module.key, info);
+
+    // keep track of unique packages
+    if (/(.+)@(.*)/.test(module.key)) {
+      var pkg = RegExp.$1;
+      if (pkg && !packages.has(pkg)) {
+          packages.set(pkg, pkg);
+      }
+    }
 
     return Promise.all(
       depEntries.map(async([name, version, type]) => {
@@ -79,7 +101,11 @@ async function modulesForQuery(query, depIncludes) {
     const m = await store.getModule(name);
     return m && _walk(m);
   }))
-    .then(() => graph);
+    .then(() => {
+        console.log(`Final results: total-deps=${graph.size}, total packages: ${packages.size})`);
+        return graph
+    });
+
 }
 
 // Compose directed graph document (GraphViz notation)
@@ -296,61 +322,61 @@ export default function Graph(props) {
 
     const graph = await modulesForQuery(query, depIncludes);
 
-    const onFinish = activity.start('Rendering');
+    // const onFinish = activity.start('Rendering');
 
-    const graphviz = d3.select('#graph')
-      .graphviz({ zoom: false })
-      .renderDot(composeDOT(graph));
+    // const graphviz = d3.select('#graph')
+    //   .graphviz({ zoom: false })
+    //   .renderDot(composeDOT(graph));
 
-    // Post-process rendered DOM
-    graphviz.on('end', async() => {
-      if (cancelled) return;
+    // // Post-process rendered DOM
+    // graphviz.on('end', async() => {
+    //   if (cancelled) return;
 
-      d3.select('#graph svg')
-        .insert('defs', ':first-child')
-        .html(`
-        <pattern id="warning"
-          width="12" height="12"
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(45 50 50)">
-          <line stroke="rgba(192,192,0,.15)" stroke-width="6px" x1="3" x2="3" y2="12"/>
-          <line stroke="rgba(0,0,0,.15)" stroke-width="6px" x1="9" x2="9" y2="12"/>
-        </pattern>
-     `);
+    //   d3.select('#graph svg')
+    //     .insert('defs', ':first-child')
+    //     .html(`
+    //     <pattern id="warning"
+    //       width="12" height="12"
+    //       patternUnits="userSpaceOnUse"
+    //       patternTransform="rotate(45 50 50)">
+    //       <line stroke="rgba(192,192,0,.15)" stroke-width="6px" x1="3" x2="3" y2="12"/>
+    //       <line stroke="rgba(0,0,0,.15)" stroke-width="6px" x1="9" x2="9" y2="12"/>
+    //     </pattern>
+    //  `);
 
-      for (const el of $('#graph g.node')) {
-        // Find module this node represents
-        const key = $(el, 'text')[0].textContent;
-        if (!key) continue;
+    //   for (const el of $('#graph g.node')) {
+    //     // Find module this node represents
+    //     const key = $(el, 'text')[0].textContent;
+    //     if (!key) continue;
 
-        const m = store.cachedEntry(key);
+    //     const m = store.cachedEntry(key);
 
-        if (m?.package?.deprecated) {
-          el.classList.add('warning');
-        }
+    //     if (m?.package?.deprecated) {
+    //       el.classList.add('warning');
+    //     }
 
-        if (m?.name) {
-          tagElement(el, 'module', m.name);
-          el.dataset.module = m.key;
-        } else {
-          report.warn(Error(`Bad replace: ${key}`));
-        }
+    //     if (m?.name) {
+    //       tagElement(el, 'module', m.name);
+    //       el.dataset.module = m.key;
+    //     } else {
+    //       report.warn(Error(`Bad replace: ${key}`));
+    //     }
 
-        const pkg = m.package;
-        if (pkg.stub) {
-          el.classList.add('stub');
-        } else {
-          tagElement(el, 'maintainer', ...pkg.maintainers.map(m => m.name));
-          tagElement(el, 'license', m.licenseString);
-        }
-      }
+    //     const pkg = m.package;
+    //     if (pkg.stub) {
+    //       el.classList.add('stub');
+    //     } else {
+    //       tagElement(el, 'maintainer', ...pkg.maintainers.map(m => m.name));
+    //       tagElement(el, 'license', m.licenseString);
+    //     }
+    //   }
 
-      setSvg($('#graph svg')[0]);
+    //   setSvg($('#graph svg')[0]);
 
-      d3.select('#graph svg .node').node()?.scrollIntoView();
+    //   d3.select('#graph svg .node').node()?.scrollIntoView();
 
-      onFinish();
-    });
+      // onFinish();
+    // });
 
     setGraph(graph);
     setPane(graph.size ? 'graph' : 'info');
@@ -359,61 +385,61 @@ export default function Graph(props) {
   }, [query, depIncludes]);
 
   // Effect: Colorize nodes
-  useEffect(async() => {
-    let cancelled = false;
-    if (!colorize) {
-      $(svg, 'g.node path').attr('style', null);
-    } else if (colorize == 'bus') {
-      for (const el of $(svg, 'g.node')) {
-        const m = store.cachedEntry(el.dataset.module);
-        $(el, 'path')[0].style.fill = hslFor((m?.package.maintainers.length - 1) / 3);
-      }
-    } else {
-      let packageNames = $('#graph g.node').map(el => store.cachedEntry(el.dataset.module).name);
+  // useEffect(async() => {
+  //   let cancelled = false;
+  //   if (!colorize) {
+  //     $(svg, 'g.node path').attr('style', null);
+  //   } else if (colorize == 'bus') {
+  //     for (const el of $(svg, 'g.node')) {
+  //       const m = store.cachedEntry(el.dataset.module);
+  //       $(el, 'path')[0].style.fill = hslFor((m?.package.maintainers.length - 1) / 3);
+  //     }
+  //   } else {
+  //     let packageNames = $('#graph g.node').map(el => store.cachedEntry(el.dataset.module).name);
 
-      // NPMS.io limits to 250 packages
-      const reqs = [];
-      const MAX_PACKAGES = 250;
-      while (packageNames.length) {
-        reqs.push(
-          fetchJSON('https://api.npms.io/v2/package/mget', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(packageNames.slice(0, MAX_PACKAGES))
-          })
-            .catch(err => {
-              console.error(err);
-              return null;
-            })
-        );
-        packageNames = packageNames.slice(MAX_PACKAGES);
-      }
+  //     // NPMS.io limits to 250 packages
+  //     const reqs = [];
+  //     const MAX_PACKAGES = 250;
+  //     while (packageNames.length) {
+  //       reqs.push(
+  //         fetchJSON('https://api.npms.io/v2/package/mget', {
+  //           method: 'POST',
+  //           headers: { 'Content-Type': 'application/json' },
+  //           body: JSON.stringify(packageNames.slice(0, MAX_PACKAGES))
+  //         })
+  //           .catch(err => {
+  //             console.error(err);
+  //             return null;
+  //           })
+  //       );
+  //       packageNames = packageNames.slice(MAX_PACKAGES);
+  //     }
 
-      Promise.all(reqs)
-        .then(arrs => arrs.filter(a => a).reduce((a, b) => ({ ...a, ...b }), {}))
-        .then(res => {
-          if (cancelled) return;
-          // TODO: 'Need hang module names on svg nodes with data-module attributes
-          for (const el of $(svg, 'g.node')) {
-            const key = $(el, 'text')[0].textContent;
-            if (!key) return;
+  //     Promise.all(reqs)
+  //       .then(arrs => arrs.filter(a => a).reduce((a, b) => ({ ...a, ...b }), {}))
+  //       .then(res => {
+  //         if (cancelled) return;
+  //         // TODO: 'Need hang module names on svg nodes with data-module attributes
+  //         for (const el of $(svg, 'g.node')) {
+  //           const key = $(el, 'text')[0].textContent;
+  //           if (!key) return;
 
-            const moduleName = key.replace(/@[\d.]+$/, '');
-            let score = res[moduleName]?.score;
-            switch (score && colorize) {
-              case 'overall': score = score.final; break;
-              case 'quality': score = score.detail.quality; break;
-              case 'popularity': score = score.detail.popularity; break;
-              case 'maintenance': score = score.detail.maintenance; break;
-            }
+  //           const moduleName = key.replace(/@[\d.]+$/, '');
+  //           let score = res[moduleName]?.score;
+  //           switch (score && colorize) {
+  //             case 'overall': score = score.final; break;
+  //             case 'quality': score = score.detail.quality; break;
+  //             case 'popularity': score = score.detail.popularity; break;
+  //             case 'maintenance': score = score.detail.maintenance; break;
+  //           }
 
-            $(el, 'path')[0].style.fill = score ? hslFor(score) : '';
-          }
-        });
-    }
+  //           $(el, 'path')[0].style.fill = score ? hslFor(score) : '';
+  //         }
+  //       });
+  //   }
 
-    return () => cancelled = true;
-  });
+  //   return () => cancelled = true;
+  // });
 
   $('title').innerText = `NPMGraph - ${query.join(', ')}`;
 

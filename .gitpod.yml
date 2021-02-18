@@ -1,0 +1,8 @@
+ports:
+  - port: 9080 # npmgraph web preview
+    visibility: public
+tasks:
+  - init: npm install && npm install -g static-server
+    command: >
+      static-server
+  - command:  gp open js/Store.js && gp open js/Graph.js 
