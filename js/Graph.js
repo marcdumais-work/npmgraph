@@ -52,6 +52,7 @@ export function hslFor(perc) {
  */
 async function modulesForQuery(query, depIncludes) {
   const graph = new Map();
+  const packages = new Map();
   let i = 0;
 
   function _walk(module, level = 0) { 
@@ -64,11 +65,11 @@ async function modulesForQuery(query, depIncludes) {
 
     // Skip modules we've already seen
     if (module && graph.has(module.key)) return Promise.resolve();
-
-    i++;
-    if ( i%100 ==0) { // every 100 new dependencies, log this:
-        console.log(`_walk(module=${module}, level=${level}, total-deps=${graph.size})`);  
+    
+    if ( i % 500 == 0 ) { // every 100 new dependencies, log this:
+        console.log(`_walk(module=${module}, level=${level}, total-deps=${graph.size}, total packages: ${packages.size})`);  
     }
+    i++;
 
     // Get dependency [name, version, dependency type] entries
     const depEntries = getDependencyEntries(module, depIncludes, level);
@@ -76,6 +77,14 @@ async function modulesForQuery(query, depIncludes) {
     // Create object that captures info about how this module fits in the dependency graph
     const info = { module, level };
     graph.set(module.key, info);
+
+    // keep track of unique packages
+    if (/(.+)@(.*)/.test(module.key)) {
+      var pkg = RegExp.$1;
+      if (pkg && !packages.has(pkg)) {
+          packages.set(pkg, pkg);
+      }
+    }
 
     return Promise.all(
       depEntries.map(async([name, version, type]) => {
@@ -92,7 +101,11 @@ async function modulesForQuery(query, depIncludes) {
     const m = await store.getModule(name);
     return m && _walk(m);
   }))
-    .then(() => graph);
+    .then(() => {
+        console.log(`Final results: total-deps=${graph.size}, total packages: ${packages.size})`);
+        return graph
+    });
+
 }
 
 // Compose directed graph document (GraphViz notation)
