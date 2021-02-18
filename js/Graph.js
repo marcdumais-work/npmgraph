@@ -52,9 +52,9 @@ export function hslFor(perc) {
  */
 async function modulesForQuery(query, depIncludes) {
   const graph = new Map();
+  let i = 0;
 
-  function _walk(module, level = 0) {
-    console.log(`_walk(module=${module}, level=${level}, total-deps=${graph.size})`);  
+  function _walk(module, level = 0) { 
     if (!module) return Promise.resolve(Error('Undefined module'));
 
     // Array?  Apply to each element
@@ -64,6 +64,11 @@ async function modulesForQuery(query, depIncludes) {
 
     // Skip modules we've already seen
     if (module && graph.has(module.key)) return Promise.resolve();
+
+    i++;
+    if ( i%100 ==0) { // every 100 new dependencies, log this:
+        console.log(`_walk(module=${module}, level=${level}, total-deps=${graph.size})`);  
+    }
 
     // Get dependency [name, version, dependency type] entries
     const depEntries = getDependencyEntries(module, depIncludes, level);
